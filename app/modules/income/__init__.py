@@ -1,0 +1,1 @@
+"""Income configuration module."""
