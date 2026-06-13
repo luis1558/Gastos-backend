@@ -54,6 +54,7 @@ class DebtPaymentCreateRequest(BaseModel):
     amount: Decimal = Field(gt=0, decimal_places=2, max_digits=14)
     description: Optional[str] = Field(default=None, max_length=255)
     notes: Optional[str] = None
+    category_id: Optional[str] = None
 
 
 class DebtPaymentResponse(BaseModel):
@@ -65,6 +66,7 @@ class DebtPaymentResponse(BaseModel):
     amount: Decimal
     description: Optional[str]
     notes: Optional[str]
+    expense_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

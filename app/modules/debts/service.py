@@ -15,6 +15,8 @@ from app.modules.debts.schemas import (
     DebtResponse,
     DebtSummaryResponse,
 )
+from app.modules.expenses.models import Expense, ExpenseCategory
+from app.modules.expenses.repository import ExpenseRepository
 from app.modules.users.models import User
 from app.shared.constants import DebtStatus, DebtType
 
@@ -25,6 +27,7 @@ class DebtService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = DebtRepository(db)
+        self.expense_repository = ExpenseRepository(db)
 
     def create_counterparty(
         self,
@@ -151,6 +154,7 @@ class DebtService:
         amount: Decimal,
         description: Optional[str],
         notes: Optional[str],
+        category_id: Optional[str] = None,
     ) -> DebtPaymentResponse:
         debt = self._require_debt(current_user.id, debt_id)
         if debt.status == DebtStatus.CANCELLED:
@@ -177,12 +181,30 @@ class DebtService:
         self.repository.save_payment(payment)
         self.db.flush()
 
+        expense_id: Optional[str] = None
+        if category_id:
+            category = self._require_category(current_user.id, category_id)
+            expense = Expense(
+                user_id=current_user.id,
+                category_id=category.id,
+                expense_date=payment_date,
+                year=payment_date.year,
+                month=payment_date.month,
+                amount=amount,
+                description=description or f"Pago de deuda: {debt.description}",
+                notes=notes,
+            )
+            self.expense_repository.save_expense(expense)
+            expense_id = expense.id
+
         debt.payments.append(payment)
         self._recalculate_debt_status(debt)
         self.repository.save_debt(debt)
         self.db.commit()
         self.db.refresh(payment)
-        return DebtPaymentResponse.model_validate(payment)
+        response = DebtPaymentResponse.model_validate(payment)
+        response.expense_id = expense_id
+        return response
 
     def list_payments(self, current_user: User, debt_id: str) -> list[DebtPaymentResponse]:
         debt = self._require_debt(current_user.id, debt_id)
@@ -199,6 +221,15 @@ class DebtService:
             overdue_payable_count=self.repository.count_overdue(current_user.id, DebtType.PAYABLE, today),
             active_debt_count=self.repository.count_active_debts(current_user.id),
         )
+
+    def _require_category(self, user_id: str, category_id: str) -> ExpenseCategory:
+        category = self.expense_repository.get_category_by_id(user_id, category_id)
+        if category is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Expense category not found.",
+            )
+        return category
 
     def _require_counterparty(self, user_id: str, counterparty_id: str) -> Counterparty:
         counterparty = self.repository.get_counterparty_by_id(user_id, counterparty_id)

@@ -139,4 +139,5 @@ def create_debt_payment(
         amount=payload.amount,
         description=payload.description,
         notes=payload.notes,
+        category_id=payload.category_id,
     )
