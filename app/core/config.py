@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
     db_echo: bool = Field(default=False, alias="DB_ECHO")
     cors_origins_raw: str = Field(
-        default="http://localhost:3000,http://localhost:5173",
+        default="http://localhost:3000,http://localhost:5173,http://localhost:8100/",
         alias="BACKEND_CORS_ORIGINS",
     )
 
