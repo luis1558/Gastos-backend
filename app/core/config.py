@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
     db_echo: bool = Field(default=False, alias="DB_ECHO")
     cors_origins_raw: str = Field(
-        default="http://localhost:3000,http://localhost:5173,http://localhost:8100/",
+        default="http://localhost:3000,http://localhost:5173",
         alias="BACKEND_CORS_ORIGINS",
     )
 
@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     smtp_user: str = Field(alias="SMTP_USER")
     smtp_password: str = Field(alias="SMTP_PASSWORD")
     smtp_from_email: str = Field(alias="SMTP_FROM_EMAIL")
+    cron_secret: str = Field(default="", alias="CRON_SECRET")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
