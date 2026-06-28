@@ -97,6 +97,11 @@ class Debt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="debt",
         cascade="all, delete-orphan",
     )
+    notification_logs = relationship(
+        "NotificationLog",
+        back_populates="debt",
+        cascade="all, delete-orphan",
+    )
 
 
 class DebtPayment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
