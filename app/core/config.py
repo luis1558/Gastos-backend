@@ -34,6 +34,12 @@ class Settings(BaseSettings):
         alias="BACKEND_CORS_ORIGINS",
     )
 
+    smtp_host: str = Field(default="smtp.gmail.com", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(alias="SMTP_USER")
+    smtp_password: str = Field(alias="SMTP_PASSWORD")
+    smtp_from_email: str = Field(alias="SMTP_FROM_EMAIL")
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sqlalchemy_database_url(self) -> str:
