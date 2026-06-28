@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,13 +9,29 @@ from app.core.config import settings
 from app.core.exceptions import install_exception_handlers
 
 
+def _run_migrations() -> None:
+    from alembic.config import Config
+    from alembic.command import upgrade
+
+    alembic_cfg = Config("alembic.ini")
+    upgrade(alembic_cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.modules.notifications.scheduler import start_scheduler, stop_scheduler
+    is_vercel = os.environ.get("VERCEL_ENV") is not None
 
-    start_scheduler()
-    yield
-    stop_scheduler()
+    if not is_vercel:
+        _run_migrations()
+
+        from app.modules.notifications.scheduler import start_scheduler, stop_scheduler
+
+        start_scheduler()
+        yield
+        stop_scheduler()
+    else:
+        _run_migrations()
+        yield
 
 
 def create_app() -> FastAPI:

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     smtp_user: str = Field(alias="SMTP_USER")
     smtp_password: str = Field(alias="SMTP_PASSWORD")
     smtp_from_email: str = Field(alias="SMTP_FROM_EMAIL")
+    cron_secret: str = Field(default="", alias="CRON_SECRET")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
