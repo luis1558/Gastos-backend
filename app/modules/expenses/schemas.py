@@ -43,6 +43,10 @@ class ExpenseCreateRequest(BaseModel):
     description: str = Field(min_length=2, max_length=255)
     payment_method: Optional[PaymentMethod] = None
     notes: Optional[str] = None
+    # Billing period — defaults to expense_date's month/year if not provided.
+    # Use this when the expense happened in one month but belongs to another period.
+    period_year: Optional[int] = Field(default=None, ge=2000, le=2100)
+    period_month: Optional[int] = Field(default=None, ge=1, le=12)
 
 
 class ExpenseUpdateRequest(BaseModel):
@@ -52,6 +56,8 @@ class ExpenseUpdateRequest(BaseModel):
     description: Optional[str] = Field(default=None, min_length=2, max_length=255)
     payment_method: Optional[PaymentMethod] = None
     notes: Optional[str] = None
+    period_year: Optional[int] = Field(default=None, ge=2000, le=2100)
+    period_month: Optional[int] = Field(default=None, ge=1, le=12)
 
 
 class ExpenseResponse(BaseModel):
