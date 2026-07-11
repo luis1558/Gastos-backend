@@ -95,6 +95,8 @@ def create_expense(
         description=payload.description,
         payment_method=payload.payment_method,
         notes=payload.notes,
+        period_year=payload.period_year,
+        period_month=payload.period_month,
     )
 
 
@@ -114,6 +116,8 @@ def update_expense(
         description=payload.description,
         payment_method=payload.payment_method,
         notes=payload.notes,
+        period_year=payload.period_year,
+        period_month=payload.period_month,
     )
 
 

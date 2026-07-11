@@ -95,14 +95,16 @@ class ExpenseService:
         description: str,
         payment_method: Optional[PaymentMethod],
         notes: Optional[str],
+        period_year: Optional[int] = None,
+        period_month: Optional[int] = None,
     ) -> ExpenseResponse:
         category = self._require_category(current_user.id, category_id)
         expense = Expense(
             user_id=current_user.id,
             category_id=category.id,
             expense_date=expense_date,
-            year=expense_date.year,
-            month=expense_date.month,
+            year=period_year if period_year is not None else expense_date.year,
+            month=period_month if period_month is not None else expense_date.month,
             amount=amount,
             description=description,
             payment_method=payment_method,
@@ -123,6 +125,8 @@ class ExpenseService:
         description: Optional[str],
         payment_method: Optional[PaymentMethod],
         notes: Optional[str],
+        period_year: Optional[int] = None,
+        period_month: Optional[int] = None,
     ) -> ExpenseResponse:
         expense = self.repository.get_expense(current_user.id, expense_id)
         if expense is None:
@@ -135,14 +139,23 @@ class ExpenseService:
             expense.category_id = category.id
         if expense_date is not None:
             expense.expense_date = expense_date
-            expense.year = expense_date.year
-            expense.month = expense_date.month
+            # Only sync period from date if no explicit period was provided
+            if period_year is None:
+                expense.year = expense_date.year
+            if period_month is None:
+                expense.month = expense_date.month
+        if period_year is not None:
+            expense.year = period_year
+        if period_month is not None:
+            expense.month = period_month
         if amount is not None:
             expense.amount = amount
         if description is not None:
             expense.description = description
-        expense.payment_method = payment_method
-        expense.notes = notes
+        if payment_method is not None:
+            expense.payment_method = payment_method
+        if notes is not None:
+            expense.notes = notes
         self.repository.save_expense(expense)
         self.db.commit()
         self.db.refresh(expense)
