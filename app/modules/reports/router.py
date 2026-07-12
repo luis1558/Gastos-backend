@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
-from app.modules.reports.schemas import MonthForecastResponse, MonthlySummaryResponse, YearlySummaryResponse
+from app.modules.reports.schemas import MonthForecastResponse, MonthlySummaryResponse, RecurringExpensesResponse, YearlySummaryResponse
 from app.modules.reports.service import ReportService
 from app.modules.users.models import User
 
@@ -43,3 +43,11 @@ def get_month_forecast(
     service: ReportService = Depends(get_report_service),
 ) -> MonthForecastResponse:
     return service.get_month_forecast(current_user, year, month)
+
+
+@router.get("/recurring-expenses", response_model=RecurringExpensesResponse)
+def get_recurring_expenses(
+    current_user: User = Depends(get_current_user),
+    service: ReportService = Depends(get_report_service),
+) -> RecurringExpensesResponse:
+    return service.get_recurring_expenses(current_user)
