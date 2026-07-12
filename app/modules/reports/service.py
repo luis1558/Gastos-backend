@@ -10,6 +10,7 @@ from app.modules.expenses.models import Expense, ExpenseCategory
 from app.modules.income.models import MonthlyIncomeConfig
 from app.modules.reports.schemas import (
     CategoryExpenseSummary,
+    MonthForecastResponse,
     MonthlySummaryResponse,
     YearlySummaryResponse,
     YearMonthSummary,
@@ -171,6 +172,79 @@ class ReportService:
             total_expenses=total_expenses,
             balance=total_income - total_expenses,
             months=months,
+        )
+
+    def get_month_forecast(
+        self,
+        current_user: User,
+        year: int,
+        month: int,
+    ) -> MonthForecastResponse:
+        import calendar
+        from datetime import date
+
+        days_in_month = calendar.monthrange(year, month)[1]
+        today = date.today()
+        days_elapsed = today.day if (year == today.year and month == today.month) else days_in_month
+
+        total_spent = self._as_decimal(
+            self.db.execute(
+                select(func.coalesce(func.sum(Expense.amount), 0)).where(
+                    Expense.user_id == current_user.id,
+                    Expense.year == year,
+                    Expense.month == month,
+                ),
+            ).scalar_one(),
+        )
+
+        daily_rate = self._as_decimal(total_spent / days_elapsed) if days_elapsed else ZERO
+        projected_expenses = self._as_decimal(daily_rate * days_in_month)
+
+        income_config = self.db.execute(
+            select(MonthlyIncomeConfig).where(
+                MonthlyIncomeConfig.user_id == current_user.id,
+                MonthlyIncomeConfig.year == year,
+                MonthlyIncomeConfig.month == month,
+            ),
+        ).scalar_one_or_none()
+
+        base_income = self._as_decimal(income_config.base_income if income_config else ZERO)
+        extra_income = self._as_decimal(income_config.extra_income if income_config else ZERO)
+        total_income = base_income + extra_income
+        projected_balance = total_income - projected_expenses
+
+        prev_year = year if month > 1 else year - 1
+        prev_month = month - 1 if month > 1 else 12
+        prev_days_cap = min(days_elapsed, calendar.monthrange(prev_year, prev_month)[1])
+        prev_cutoff = date(prev_year, prev_month, prev_days_cap)
+
+        prev_spent = self._as_decimal(
+            self.db.execute(
+                select(func.coalesce(func.sum(Expense.amount), 0)).where(
+                    Expense.user_id == current_user.id,
+                    Expense.year == prev_year,
+                    Expense.month == prev_month,
+                    Expense.expense_date <= prev_cutoff,
+                ),
+            ).scalar_one(),
+        )
+
+        if prev_spent > ZERO:
+            pace_pct = ((total_spent - prev_spent) / prev_spent * 100).quantize(Decimal("0.1"))
+        else:
+            pace_pct = None
+
+        return MonthForecastResponse(
+            year=year,
+            month=month,
+            days_in_month=days_in_month,
+            days_elapsed=days_elapsed,
+            total_spent=total_spent,
+            daily_rate=daily_rate,
+            projected_expenses=projected_expenses,
+            total_income=total_income,
+            projected_balance=projected_balance,
+            pace_pct=pace_pct,
         )
 
     @staticmethod

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -42,3 +43,16 @@ class YearlySummaryResponse(BaseModel):
     total_expenses: Decimal
     balance: Decimal
     months: list[YearMonthSummary]
+
+
+class MonthForecastResponse(BaseModel):
+    year: int
+    month: int
+    days_in_month: int
+    days_elapsed: int
+    total_spent: Decimal
+    daily_rate: Decimal
+    projected_expenses: Decimal
+    total_income: Decimal
+    projected_balance: Decimal
+    pace_pct: Optional[Decimal]
