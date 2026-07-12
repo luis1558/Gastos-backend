@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel
@@ -56,3 +57,19 @@ class MonthForecastResponse(BaseModel):
     total_income: Decimal
     projected_balance: Decimal
     pace_pct: Optional[Decimal]
+
+
+class RecurringExpenseItem(BaseModel):
+    description: str
+    category_id: str
+    category_name: str
+    category_slug: str
+    avg_amount: Decimal
+    occurrence_months: int
+    last_amount: Decimal
+    last_date: date
+
+
+class RecurringExpensesResponse(BaseModel):
+    checked_months: int
+    items: list[RecurringExpenseItem]

@@ -12,6 +12,8 @@ from app.modules.reports.schemas import (
     CategoryExpenseSummary,
     MonthForecastResponse,
     MonthlySummaryResponse,
+    RecurringExpenseItem,
+    RecurringExpensesResponse,
     YearlySummaryResponse,
     YearMonthSummary,
 )
@@ -246,6 +248,76 @@ class ReportService:
             projected_balance=projected_balance,
             pace_pct=pace_pct,
         )
+
+    def get_recurring_expenses(self, current_user: User) -> RecurringExpensesResponse:
+        import calendar
+        from collections import defaultdict
+        from datetime import date
+
+        from sqlalchemy import and_, or_
+
+        today = date.today()
+        periods: list[tuple[int, int]] = []
+        y, m = today.year, today.month
+        for _ in range(4):
+            periods.append((y, m))
+            m -= 1
+            if m == 0:
+                m = 12
+                y -= 1
+
+        rows = self.db.execute(
+            select(
+                Expense.description,
+                Expense.category_id,
+                ExpenseCategory.name,
+                ExpenseCategory.slug,
+                Expense.amount,
+                Expense.expense_date,
+                Expense.year,
+                Expense.month,
+            )
+            .join(ExpenseCategory, Expense.category_id == ExpenseCategory.id)
+            .where(
+                Expense.user_id == current_user.id,
+                or_(
+                    *[
+                        and_(Expense.year == ym[0], Expense.month == ym[1])
+                        for ym in periods
+                    ]
+                ),
+            )
+            .order_by(Expense.expense_date.desc())
+        ).all()
+
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for row in rows:
+            key = (row[0].strip().lower(), row[1])
+            groups[key].append(row)
+
+        items: list[RecurringExpenseItem] = []
+        for (norm_desc, cat_id), group_rows in groups.items():
+            months_seen = {(r[6], r[7]) for r in group_rows}
+            if len(months_seen) < 3:
+                continue
+            amounts = [self._as_decimal(r[4]) for r in group_rows]
+            avg_amount = sum(amounts) / len(amounts)
+            latest = group_rows[0]
+            items.append(
+                RecurringExpenseItem(
+                    description=latest[0],
+                    category_id=cat_id,
+                    category_name=latest[2],
+                    category_slug=latest[3],
+                    avg_amount=avg_amount.quantize(Decimal("0.01")),
+                    occurrence_months=len(months_seen),
+                    last_amount=self._as_decimal(latest[4]),
+                    last_date=latest[5],
+                )
+            )
+
+        items.sort(key=lambda x: x.avg_amount, reverse=True)
+        return RecurringExpensesResponse(checked_months=4, items=items)
 
     @staticmethod
     def _as_decimal(value: Union[Decimal, int, float]) -> Decimal:
