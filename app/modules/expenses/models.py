@@ -75,6 +75,12 @@ class Expense(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    # Set when the purchase was made with a card whose purchases are tracked.
+    card_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("cards.id", ondelete="SET NULL"),
+        index=True,
+    )
 
     user = relationship("User", back_populates="expenses")
     category = relationship("ExpenseCategory", back_populates="expenses")
+    card = relationship("Card")

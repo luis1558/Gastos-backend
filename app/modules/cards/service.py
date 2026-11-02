@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.cards.models import Card, CardStatement
 from app.modules.cards.repository import CardRepository
-from app.modules.cards.schemas import CardResponse
+from app.modules.cards.schemas import CardPurchaseResponse, CardResponse
 from app.modules.expenses.models import Expense
 from app.modules.expenses.repository import ExpenseRepository
 from app.modules.fixed_payments.service import due_date_for
@@ -28,7 +28,28 @@ class CardService:
         self.goal_repository = GoalRepository(db)
 
     def list_cards(self, current_user: User, year: int, month: int) -> list[CardResponse]:
-        return [self._to_response(card, year, month) for card in self.repository.list_cards(current_user.id)]
+        summary = self.repository.purchases_summary(current_user.id, year, month)
+        return [
+            self._to_response(card, year, month, summary.get(card.id))
+            for card in self.repository.list_cards(current_user.id)
+        ]
+
+    def list_purchases(self, current_user: User, card_id: str, year: int, month: int) -> list[CardPurchaseResponse]:
+        card = self._require(current_user.id, card_id)
+        return [
+            CardPurchaseResponse(
+                id=expense.id,
+                expense_date=expense.expense_date,
+                amount=Decimal(str(expense.amount)),
+                description=expense.description,
+                category_name=expense.category.name,
+            )
+            for expense in self.repository.list_purchases(current_user.id, card.id, year, month)
+        ]
+
+    def _respond(self, user_id: str, card: Card, year: int, month: int) -> CardResponse:
+        summary = self.repository.purchases_summary(user_id, year, month, card_id=card.id)
+        return self._to_response(card, year, month, summary.get(card.id))
 
     def create_card(
         self,
@@ -54,7 +75,7 @@ class CardService:
         self.repository.save_card(card)
         self.db.commit()
         today = date.today()
-        return self._to_response(self._require(current_user.id, card.id), today.year, today.month)
+        return self._respond(current_user.id, self._require(current_user.id, card.id), today.year, today.month)
 
     def update_card(
         self,
@@ -73,12 +94,18 @@ class CardService:
             if field == "name":
                 value = value.strip()
             setattr(card, field, value)
+        if not card.tracks_purchases and self.repository.count_purchases(current_user.id, card.id) > 0:
+            # Paying a payment-only card creates an expense, which would duplicate its registered purchases.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This card has registered purchases. Remove them before switching to payment-only tracking.",
+            )
         card.category_id = self._validate_category(current_user.id, card.tracks_purchases, card.category_id)
         self.repository.save_card(card)
         self.db.commit()
         # The category may have changed, so the already-loaded relationship is stale.
         self.db.expire(card, ["category"])
-        return self._to_response(card, year, month)
+        return self._respond(current_user.id, card, year, month)
 
     def delete_card(self, current_user: User, card_id: str) -> None:
         """Removes the card and its statements. Expenses already created are kept."""
@@ -103,7 +130,7 @@ class CardService:
         self.repository.save_statement(statement)
         self.db.commit()
         self.db.expire(card, ["statements"])
-        return self._to_response(card, year, month)
+        return self._respond(current_user.id, card, year, month)
 
     def clear_statement(self, current_user: User, card_id: str, year: int, month: int) -> CardResponse:
         card = self._require(current_user.id, card_id)
@@ -121,7 +148,7 @@ class CardService:
         self.repository.delete_statement(statement)
         self.db.commit()
         self.db.expire(card, ["statements"])
-        return self._to_response(card, year, month)
+        return self._respond(current_user.id, card, year, month)
 
     def pay(
         self,
@@ -179,7 +206,7 @@ class CardService:
 
         self.db.commit()
         self.db.expire(card, ["statements"])
-        return self._to_response(card, year, month)
+        return self._respond(current_user.id, card, year, month)
 
     def undo_payment(self, current_user: User, card_id: str, year: int, month: int) -> CardResponse:
         """Reverts a payment: removes the expense it created (if any) and keeps the amount."""
@@ -199,7 +226,7 @@ class CardService:
         self.repository.save_statement(statement)
         self.db.commit()
         self.db.expire(card, ["statements"])
-        return self._to_response(card, year, month)
+        return self._respond(current_user.id, card, year, month)
 
     def _require(self, user_id: str, card_id: str) -> Card:
         card = self.repository.get_card(user_id, card_id)
@@ -222,7 +249,9 @@ class CardService:
         return category.id
 
     @staticmethod
-    def _to_response(card: Card, year: int, month: int) -> CardResponse:
+    def _to_response(
+        card: Card, year: int, month: int, purchases: Optional[tuple[Decimal, int]] = None
+    ) -> CardResponse:
         statement = next((s for s in card.statements if s.year == year and s.month == month), None)
         if statement is None:
             card_status = "undefined"
@@ -244,4 +273,6 @@ class CardService:
             status=card_status,
             statement_amount=Decimal(str(statement.amount)) if statement else None,
             paid_on=statement.paid_on if statement else None,
+            purchases_total=purchases[0] if purchases else Decimal("0"),
+            purchases_count=purchases[1] if purchases else 0,
         )

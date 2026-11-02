@@ -8,6 +8,7 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.cards.schemas import (
     CardCreateRequest,
     CardPayRequest,
+    CardPurchaseResponse,
     CardResponse,
     CardUpdateRequest,
     StatementRequest,
@@ -73,6 +74,17 @@ def delete_card(
     service: CardService = Depends(get_card_service),
 ) -> None:
     service.delete_card(current_user, card_id)
+
+
+@router.get("/cards/{card_id}/purchases", response_model=list[CardPurchaseResponse])
+def list_card_purchases(
+    card_id: str,
+    year: int = Year,
+    month: int = Month,
+    current_user: User = Depends(get_current_user),
+    service: CardService = Depends(get_card_service),
+) -> list[CardPurchaseResponse]:
+    return service.list_purchases(current_user, card_id, year, month)
 
 
 @router.put("/cards/{card_id}/statement", response_model=CardResponse)

@@ -55,3 +55,14 @@ class CardResponse(BaseModel):
     status: Literal["undefined", "pending", "paid"]
     statement_amount: Optional[Decimal] = None
     paid_on: Optional[date] = None
+    # Purchases registered with this card in the requested month (a hint for the statement amount).
+    purchases_total: Decimal = Decimal("0")
+    purchases_count: int = 0
+
+
+class CardPurchaseResponse(BaseModel):
+    id: str
+    expense_date: date
+    amount: Decimal
+    description: str
+    category_name: str
