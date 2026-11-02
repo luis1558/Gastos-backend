@@ -7,6 +7,8 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.modules.cards.models import Card
+from app.modules.cards.repository import CardRepository
 from app.modules.expenses.models import Expense, ExpenseCategory
 from app.modules.expenses.repository import ExpenseRepository
 from app.modules.expenses.schemas import (
@@ -22,6 +24,7 @@ class ExpenseService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = ExpenseRepository(db)
+        self.card_repository = CardRepository(db)
 
     def create_category(
         self,
@@ -97,8 +100,12 @@ class ExpenseService:
         notes: Optional[str],
         period_year: Optional[int] = None,
         period_month: Optional[int] = None,
+        card_id: Optional[str] = None,
     ) -> ExpenseResponse:
         category = self._require_category(current_user.id, category_id)
+        if card_id is not None:
+            card_id = self._require_card(current_user.id, card_id, payment_method).id
+            payment_method = PaymentMethod.CREDIT_CARD
         expense = Expense(
             user_id=current_user.id,
             category_id=category.id,
@@ -109,6 +116,7 @@ class ExpenseService:
             description=description,
             payment_method=payment_method,
             notes=notes,
+            card_id=card_id,
         )
         self.repository.save_expense(expense)
         self.db.commit()
@@ -127,6 +135,8 @@ class ExpenseService:
         notes: Optional[str],
         period_year: Optional[int] = None,
         period_month: Optional[int] = None,
+        card_id: Optional[str] = None,
+        card_id_provided: bool = False,
     ) -> ExpenseResponse:
         expense = self.repository.get_expense(current_user.id, expense_id)
         if expense is None:
@@ -154,6 +164,15 @@ class ExpenseService:
             expense.description = description
         if payment_method is not None:
             expense.payment_method = payment_method
+            # Only credit card purchases can belong to a card.
+            if payment_method != PaymentMethod.CREDIT_CARD and not card_id_provided:
+                expense.card_id = None
+        if card_id_provided:
+            if card_id is None:
+                expense.card_id = None
+            else:
+                expense.card_id = self._require_card(current_user.id, card_id, payment_method).id
+                expense.payment_method = PaymentMethod.CREDIT_CARD
         if notes is not None:
             expense.notes = notes
         self.repository.save_expense(expense)
@@ -185,6 +204,8 @@ class ExpenseService:
                     updated_at=expense.updated_at,
                     category_name=expense.category.name,
                     category_slug=expense.category.slug,
+                    card_id=expense.card_id,
+                    card_name=expense.card.name if expense.card is not None else None,
                 ),
             )
         return items
@@ -198,6 +219,28 @@ class ExpenseService:
             )
         self.repository.delete_expense(expense)
         self.db.commit()
+
+    def _require_card(
+        self, user_id: str, card_id: str, payment_method: Optional[PaymentMethod]
+    ) -> Card:
+        """A purchase can only be linked to an active card that tracks its purchases."""
+        card = self.card_repository.get_card(user_id, card_id)
+        if card is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found.")
+        if not card.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This card is inactive.")
+        if not card.tracks_purchases:
+            # Paying that card creates an expense, so tracking purchases too would count them twice.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This card only tracks its payment. Switch it to tracking purchases first.",
+            )
+        if payment_method is not None and payment_method != PaymentMethod.CREDIT_CARD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A card purchase must use credit card as the payment method.",
+            )
+        return card
 
     def _require_category(self, user_id: str, category_id: str) -> ExpenseCategory:
         category = self.repository.get_category_by_id(user_id, category_id)

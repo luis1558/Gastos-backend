@@ -58,7 +58,7 @@ class ExpenseRepository:
     ) -> list[Expense]:
         stmt = (
             select(Expense)
-            .options(joinedload(Expense.category))
+            .options(joinedload(Expense.category), joinedload(Expense.card))
             .where(Expense.user_id == user_id, Expense.year == year)
         )
         if month is not None:

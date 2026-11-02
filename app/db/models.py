@@ -1,4 +1,5 @@
 from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.cards import models as card_models  # noqa: F401
 from app.modules.debts import models as debt_models  # noqa: F401
 from app.modules.expenses import models as expense_models  # noqa: F401
 from app.modules.fixed_payments import models as fixed_payment_models  # noqa: F401

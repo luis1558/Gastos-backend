@@ -68,6 +68,7 @@ def create_goal(
         notes=payload.notes,
         debt_id=payload.debt_id,
         fixed_payment_id=payload.fixed_payment_id,
+        card_id=payload.card_id,
     )
 
 

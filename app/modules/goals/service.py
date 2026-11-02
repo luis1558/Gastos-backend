@@ -7,6 +7,7 @@ from typing import Any, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.modules.cards.repository import CardRepository
 from app.modules.debts.repository import DebtRepository
 from app.modules.fixed_payments.repository import FixedPaymentRepository
 from app.modules.goals.models import Goal, GoalContribution
@@ -22,8 +23,6 @@ from app.shared.constants import DebtStatus, DebtType, GoalKind, GoalStatus
 ZERO = Decimal("0.00")
 HUNDRED = Decimal("100")
 CENT = Decimal("0.01")
-# Kinds that need their own module (cards, fixed payments) before they can be created.
-UNAVAILABLE_KINDS = {GoalKind.CARD}
 EDITABLE_FIELDS = {"name", "target_amount", "target_date", "notes"}
 
 
@@ -37,6 +36,7 @@ class GoalService:
         self.repository = GoalRepository(db)
         self.debt_repository = DebtRepository(db)
         self.fixed_payment_repository = FixedPaymentRepository(db)
+        self.card_repository = CardRepository(db)
 
     # ---- overview -------------------------------------------------------
 
@@ -81,12 +81,8 @@ class GoalService:
         notes: Optional[str],
         debt_id: Optional[str],
         fixed_payment_id: Optional[str] = None,
+        card_id: Optional[str] = None,
     ) -> GoalResponse:
-        if kind in UNAVAILABLE_KINDS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This kind of goal is not available yet.",
-            )
         if kind == GoalKind.DEBT:
             debt_id = self._validate_debt(current_user.id, debt_id)
         elif debt_id is not None:
@@ -101,6 +97,13 @@ class GoalService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only fixed payment goals can be linked to a fixed payment.",
             )
+        if kind == GoalKind.CARD:
+            card_id = self._validate_card(current_user.id, card_id)
+        elif card_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only card goals can be linked to a card.",
+            )
 
         goal = Goal(
             user_id=current_user.id,
@@ -112,6 +115,7 @@ class GoalService:
             notes=notes,
             debt_id=debt_id,
             fixed_payment_id=fixed_payment_id,
+            card_id=card_id,
         )
         self.repository.save_goal(goal)
         self.db.commit()
@@ -261,9 +265,39 @@ class GoalService:
             )
         return fixed_payment.id
 
+    def _validate_card(self, user_id: str, card_id: Optional[str]) -> str:
+        if not card_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A card goal needs a card.",
+            )
+        card = self.card_repository.get_card(user_id, card_id)
+        if card is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found.")
+        if not card.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This card is inactive.")
+        if card.tracks_purchases:
+            # Its purchases are already expenses, so reserving the bill would count the money twice.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This card already tracks its purchases as expenses; its bill is already discounted from your available balance.",
+            )
+        if self.repository.get_active_goal_for_card(user_id, card.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="There is already an active goal for this card.",
+            )
+        return card.id
+
     @staticmethod
     def _saved_amount(goal: Goal) -> Decimal:
         return sum((_dec(item.amount) for item in goal.contributions), ZERO)
+
+    @staticmethod
+    def _card_label(goal: Goal) -> Optional[str]:
+        if goal.card is None:
+            return None
+        return f"{goal.card.name} ····{goal.card.last_four}" if goal.card.last_four else goal.card.name
 
     def _to_response(self, goal: Goal) -> GoalResponse:
         saved = self._saved_amount(goal)
@@ -282,6 +316,8 @@ class GoalService:
             notes=goal.notes,
             debt_id=goal.debt_id,
             debt_label=debt_label,
+            card_id=goal.card_id,
+            card_label=self._card_label(goal),
             fixed_payment_id=goal.fixed_payment_id,
             fixed_payment_label=goal.fixed_payment.name if goal.fixed_payment is not None else None,
             saved_amount=saved,

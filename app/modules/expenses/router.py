@@ -97,6 +97,7 @@ def create_expense(
         notes=payload.notes,
         period_year=payload.period_year,
         period_month=payload.period_month,
+        card_id=payload.card_id,
     )
 
 
@@ -118,6 +119,8 @@ def update_expense(
         notes=payload.notes,
         period_year=payload.period_year,
         period_month=payload.period_month,
+        card_id=payload.card_id,
+        card_id_provided="card_id" in payload.model_fields_set,
     )
 
 
