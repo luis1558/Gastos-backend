@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.modules.debts.interest import balance_for_debt
 from app.modules.notifications.email_service import ReminderEmailData, send_reminder_email
 from app.modules.notifications.models import ReminderType
 from app.modules.notifications.repository import NotificationRepository
@@ -52,7 +53,7 @@ async def check_and_send_reminders(db: Session) -> None:
             user_email, user_name = user_info
             paid = _paid_amount(debt)
             original = Decimal(str(debt.original_amount))
-            remaining = original - paid
+            remaining = balance_for_debt(debt, today).total_owed
 
             data = ReminderEmailData(
                 user_email=user_email,

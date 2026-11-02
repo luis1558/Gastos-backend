@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Optional
 
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.modules.debts.models import Counterparty, Debt, DebtPayment
+from app.modules.debts.models import Counterparty, Debt, DebtPayment, DebtRateChange
 from app.shared.constants import DebtStatus, DebtType
 
 
@@ -43,7 +43,11 @@ class DebtRepository:
     def get_debt(self, user_id: str, debt_id: str) -> Optional[Debt]:
         stmt: Select[tuple[Debt]] = (
             select(Debt)
-            .options(joinedload(Debt.counterparty), joinedload(Debt.payments))
+            .options(
+                    joinedload(Debt.counterparty),
+                    joinedload(Debt.payments),
+                    selectinload(Debt.rate_changes),
+                )
             .where(Debt.user_id == user_id, Debt.id == debt_id)
         )
         return self.db.execute(stmt).unique().scalar_one_or_none()
@@ -56,7 +60,11 @@ class DebtRepository:
     ) -> list[Debt]:
         stmt = (
             select(Debt)
-            .options(joinedload(Debt.counterparty), joinedload(Debt.payments))
+            .options(
+                    joinedload(Debt.counterparty),
+                    joinedload(Debt.payments),
+                    selectinload(Debt.rate_changes),
+                )
             .where(Debt.user_id == user_id)
             .order_by(Debt.origin_date.desc(), Debt.created_at.desc())
         )
@@ -84,30 +92,28 @@ class DebtRepository:
         self.db.flush()
         return payment
 
-    def aggregate_remaining_by_type(self, user_id: str) -> list[tuple[DebtType, Optional[float]]]:
-        paid_subquery = (
-            select(
-                DebtPayment.debt_id.label("debt_id"),
-                func.coalesce(func.sum(DebtPayment.amount), 0).label("paid_amount"),
-            )
-            .where(DebtPayment.user_id == user_id)
-            .group_by(DebtPayment.debt_id)
-            .subquery()
+    def get_rate_change(self, debt_id: str, rate_change_id: str) -> Optional[DebtRateChange]:
+        stmt: Select[tuple[DebtRateChange]] = select(DebtRateChange).where(
+            DebtRateChange.debt_id == debt_id,
+            DebtRateChange.id == rate_change_id,
         )
+        return self.db.execute(stmt).scalar_one_or_none()
 
-        stmt = (
-            select(
-                Debt.type,
-                func.coalesce(func.sum(Debt.original_amount - func.coalesce(paid_subquery.c.paid_amount, 0)), 0),
-            )
-            .outerjoin(paid_subquery, Debt.id == paid_subquery.c.debt_id)
-            .where(
-                Debt.user_id == user_id,
-                Debt.status.in_([DebtStatus.PENDING, DebtStatus.PARTIALLY_PAID]),
-            )
-            .group_by(Debt.type)
+    def get_rate_change_by_date(self, debt_id: str, effective_date) -> Optional[DebtRateChange]:
+        stmt: Select[tuple[DebtRateChange]] = select(DebtRateChange).where(
+            DebtRateChange.debt_id == debt_id,
+            DebtRateChange.effective_date == effective_date,
         )
-        return list(self.db.execute(stmt).all())
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def save_rate_change(self, rate_change: DebtRateChange) -> DebtRateChange:
+        self.db.add(rate_change)
+        self.db.flush()
+        return rate_change
+
+    def delete_rate_change(self, rate_change: DebtRateChange) -> None:
+        self.db.delete(rate_change)
+        self.db.flush()
 
     def count_overdue(self, user_id: str, debt_type: DebtType, today) -> int:
         stmt = select(func.count(Debt.id)).where(

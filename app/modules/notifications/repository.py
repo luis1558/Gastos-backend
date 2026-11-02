@@ -21,6 +21,7 @@ class NotificationRepository:
             .options(
                 selectinload(Debt.counterparty),
                 selectinload(Debt.payments),
+                selectinload(Debt.rate_changes),
             )
             .where(
                 Debt.due_date == target_date,
