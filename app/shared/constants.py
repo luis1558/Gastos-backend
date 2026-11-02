@@ -29,6 +29,18 @@ class RatePeriod(str, Enum):
     ANNUAL = "annual"
 
 
+class GoalKind(str, Enum):
+    DEBT = "debt"
+    CARD = "card"
+    FIXED_PAYMENT = "fixed_payment"
+    PERSONAL = "personal"
+
+
+class GoalStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+
 class PaymentMethod(str, Enum):
     CASH = "cash"
     DEBIT_CARD = "debit_card"
