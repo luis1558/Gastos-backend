@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.modules.debts.repository import DebtRepository
+from app.modules.fixed_payments.repository import FixedPaymentRepository
 from app.modules.goals.models import Goal, GoalContribution
 from app.modules.goals.repository import GoalRepository
 from app.modules.goals.schemas import (
@@ -22,7 +23,7 @@ ZERO = Decimal("0.00")
 HUNDRED = Decimal("100")
 CENT = Decimal("0.01")
 # Kinds that need their own module (cards, fixed payments) before they can be created.
-UNAVAILABLE_KINDS = {GoalKind.CARD, GoalKind.FIXED_PAYMENT}
+UNAVAILABLE_KINDS = {GoalKind.CARD}
 EDITABLE_FIELDS = {"name", "target_amount", "target_date", "notes"}
 
 
@@ -35,6 +36,7 @@ class GoalService:
         self.db = db
         self.repository = GoalRepository(db)
         self.debt_repository = DebtRepository(db)
+        self.fixed_payment_repository = FixedPaymentRepository(db)
 
     # ---- overview -------------------------------------------------------
 
@@ -78,6 +80,7 @@ class GoalService:
         target_date: Optional[date],
         notes: Optional[str],
         debt_id: Optional[str],
+        fixed_payment_id: Optional[str] = None,
     ) -> GoalResponse:
         if kind in UNAVAILABLE_KINDS:
             raise HTTPException(
@@ -91,6 +94,13 @@ class GoalService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only debt goals can be linked to a debt.",
             )
+        if kind == GoalKind.FIXED_PAYMENT:
+            fixed_payment_id = self._validate_fixed_payment(current_user.id, fixed_payment_id)
+        elif fixed_payment_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only fixed payment goals can be linked to a fixed payment.",
+            )
 
         goal = Goal(
             user_id=current_user.id,
@@ -101,6 +111,7 @@ class GoalService:
             target_date=target_date,
             notes=notes,
             debt_id=debt_id,
+            fixed_payment_id=fixed_payment_id,
         )
         self.repository.save_goal(goal)
         self.db.commit()
@@ -229,6 +240,27 @@ class GoalService:
             )
         return debt.id
 
+    def _validate_fixed_payment(self, user_id: str, fixed_payment_id: Optional[str]) -> str:
+        if not fixed_payment_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A fixed payment goal needs a fixed payment.",
+            )
+        fixed_payment = self.fixed_payment_repository.get_fixed_payment(user_id, fixed_payment_id)
+        if fixed_payment is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixed payment not found.")
+        if not fixed_payment.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This fixed payment is inactive.",
+            )
+        if self.repository.get_active_goal_for_fixed_payment(user_id, fixed_payment.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="There is already an active goal for this fixed payment.",
+            )
+        return fixed_payment.id
+
     @staticmethod
     def _saved_amount(goal: Goal) -> Decimal:
         return sum((_dec(item.amount) for item in goal.contributions), ZERO)
@@ -250,6 +282,8 @@ class GoalService:
             notes=goal.notes,
             debt_id=goal.debt_id,
             debt_label=debt_label,
+            fixed_payment_id=goal.fixed_payment_id,
+            fixed_payment_label=goal.fixed_payment.name if goal.fixed_payment is not None else None,
             saved_amount=saved,
             remaining_amount=max(ZERO, target - saved),
             progress_percent=progress.quantize(CENT),
