@@ -81,7 +81,9 @@ class FixedPaymentService:
             setattr(fixed_payment, field, value)
         self.repository.save_fixed_payment(fixed_payment)
         self.db.commit()
-        return self._to_response(self._require(current_user.id, fixed_payment_id), year, month)
+        # The category may have changed, so the already-loaded relationship is stale.
+        self.db.expire(fixed_payment, ["category"])
+        return self._to_response(fixed_payment, year, month)
 
     def delete_fixed_payment(self, current_user: User, fixed_payment_id: str) -> None:
         """Removes the fixed payment. Expenses it already created are kept."""

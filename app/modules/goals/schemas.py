@@ -17,6 +17,7 @@ class GoalCreateRequest(BaseModel):
     notes: Optional[str] = None
     debt_id: Optional[str] = None
     fixed_payment_id: Optional[str] = None
+    card_id: Optional[str] = None
 
 
 class GoalUpdateRequest(BaseModel):
@@ -41,6 +42,8 @@ class GoalResponse(BaseModel):
     debt_label: Optional[str] = None
     fixed_payment_id: Optional[str] = None
     fixed_payment_label: Optional[str] = None
+    card_id: Optional[str] = None
+    card_label: Optional[str] = None
     saved_amount: Decimal
     remaining_amount: Decimal
     progress_percent: Decimal

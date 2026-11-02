@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.modules.auth.router import router as auth_router
+from app.modules.cards.router import router as cards_router
 from app.modules.debts.router import router as debts_router
 from app.modules.expenses.router import router as expenses_router
 from app.modules.fixed_payments.router import router as fixed_payments_router
@@ -14,6 +15,7 @@ router.include_router(auth_router)
 router.include_router(users_router)
 router.include_router(income_router)
 router.include_router(expenses_router)
+router.include_router(cards_router)
 router.include_router(debts_router)
 router.include_router(fixed_payments_router)
 router.include_router(goals_router)

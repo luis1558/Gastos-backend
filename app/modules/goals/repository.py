@@ -22,6 +22,7 @@ class GoalRepository:
             selectinload(Goal.contributions),
             joinedload(Goal.debt).joinedload(Debt.counterparty),
             joinedload(Goal.fixed_payment),
+            joinedload(Goal.card),
         )
 
     def list_goals(self, user_id: str, status: Optional[GoalStatus] = None) -> list[Goal]:
@@ -46,6 +47,14 @@ class GoalRepository:
         stmt = select(Goal).where(
             Goal.user_id == user_id,
             Goal.fixed_payment_id == fixed_payment_id,
+            Goal.status == GoalStatus.ACTIVE,
+        )
+        return self.db.execute(stmt).scalars().first()
+
+    def get_active_goal_for_card(self, user_id: str, card_id: str) -> Optional[Goal]:
+        stmt = select(Goal).where(
+            Goal.user_id == user_id,
+            Goal.card_id == card_id,
             Goal.status == GoalStatus.ACTIVE,
         )
         return self.db.execute(stmt).scalars().first()
