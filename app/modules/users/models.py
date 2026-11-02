@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -18,6 +18,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Starting point for the cumulative balance (money the user already had).
+    opening_balance: Mapped[float] = mapped_column(
+        Numeric(14, 2),
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
 
     refresh_tokens = relationship(
         "RefreshToken",
