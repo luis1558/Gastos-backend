@@ -13,6 +13,22 @@ class DebtStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class InterestType(str, Enum):
+    NONE = "none"
+    SIMPLE = "simple"
+    COMPOUND = "compound"
+
+
+class RateType(str, Enum):
+    FIXED = "fixed"
+    VARIABLE = "variable"
+
+
+class RatePeriod(str, Enum):
+    MONTHLY = "monthly"
+    ANNUAL = "annual"
+
+
 class PaymentMethod(str, Enum):
     CASH = "cash"
     DEBIT_CARD = "debit_card"

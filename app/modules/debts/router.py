@@ -13,6 +13,8 @@ from app.modules.debts.schemas import (
     DebtCreateRequest,
     DebtPaymentCreateRequest,
     DebtPaymentResponse,
+    DebtRateChangeCreateRequest,
+    DebtRateChangeResponse,
     DebtResponse,
     DebtSummaryResponse,
     DebtUpdateRequest,
@@ -77,6 +79,10 @@ def create_debt(
         original_amount=payload.original_amount,
         description=payload.description,
         notes=payload.notes,
+        interest_type=payload.interest_type,
+        rate_type=payload.rate_type,
+        rate_period=payload.rate_period,
+        interest_rate=payload.interest_rate,
     )
 
 
@@ -113,7 +119,50 @@ def update_debt(
         description=payload.description,
         notes=payload.notes,
         requested_status=payload.status,
+        interest_type=payload.interest_type,
+        rate_type=payload.rate_type,
+        rate_period=payload.rate_period,
+        interest_rate=payload.interest_rate,
     )
+
+
+@router.get("/debts/{debt_id}/rate-changes", response_model=list[DebtRateChangeResponse])
+def list_debt_rate_changes(
+    debt_id: str,
+    current_user: User = Depends(get_current_user),
+    service: DebtService = Depends(get_debt_service),
+) -> list[DebtRateChangeResponse]:
+    return service.list_rate_changes(current_user, debt_id)
+
+
+@router.post(
+    "/debts/{debt_id}/rate-changes",
+    response_model=DebtRateChangeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_debt_rate_change(
+    debt_id: str,
+    payload: DebtRateChangeCreateRequest,
+    current_user: User = Depends(get_current_user),
+    service: DebtService = Depends(get_debt_service),
+) -> DebtRateChangeResponse:
+    return service.create_rate_change(
+        current_user=current_user,
+        debt_id=debt_id,
+        effective_date=payload.effective_date,
+        rate=payload.rate,
+        notes=payload.notes,
+    )
+
+
+@router.delete("/debts/{debt_id}/rate-changes/{rate_change_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_debt_rate_change(
+    debt_id: str,
+    rate_change_id: str,
+    current_user: User = Depends(get_current_user),
+    service: DebtService = Depends(get_debt_service),
+) -> None:
+    service.delete_rate_change(current_user, debt_id, rate_change_id)
 
 
 @router.get("/debts/{debt_id}/payments", response_model=list[DebtPaymentResponse])

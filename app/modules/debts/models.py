@@ -18,7 +18,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.mixins import TimestampMixin, UUIDPrimaryKeyMixin
-from app.shared.constants import CounterpartyType, DebtStatus, DebtType, enum_values
+from app.shared.constants import (
+    CounterpartyType,
+    DebtStatus,
+    DebtType,
+    InterestType,
+    RatePeriod,
+    RateType,
+    enum_values,
+)
 
 
 class Counterparty(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -89,6 +97,43 @@ class Debt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    interest_type: Mapped[InterestType] = mapped_column(
+        SqlEnum(
+            InterestType,
+            name="interest_type_enum",
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=InterestType.NONE,
+        server_default=InterestType.NONE.value,
+    )
+    rate_type: Mapped[RateType] = mapped_column(
+        SqlEnum(
+            RateType,
+            name="rate_type_enum",
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=RateType.FIXED,
+        server_default=RateType.FIXED.value,
+    )
+    rate_period: Mapped[RatePeriod] = mapped_column(
+        SqlEnum(
+            RatePeriod,
+            name="rate_period_enum",
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=RatePeriod.ANNUAL,
+        server_default=RatePeriod.ANNUAL.value,
+    )
+    # Percentage per `rate_period` (e.g. 12.5 means 12.5%).
+    interest_rate: Mapped[float] = mapped_column(
+        Numeric(7, 4),
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
 
     user = relationship("User", back_populates="debts")
     counterparty = relationship("Counterparty", back_populates="debts")
@@ -101,6 +146,12 @@ class Debt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         "NotificationLog",
         back_populates="debt",
         cascade="all, delete-orphan",
+    )
+    rate_changes = relationship(
+        "DebtRateChange",
+        back_populates="debt",
+        cascade="all, delete-orphan",
+        order_by="DebtRateChange.effective_date",
     )
 
 
@@ -127,3 +178,34 @@ class DebtPayment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[Optional[str]] = mapped_column(Text)
     user = relationship("User", back_populates="debt_payments")
     debt = relationship("Debt", back_populates="payments")
+
+
+class DebtRateChange(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Rate that applies to a variable-rate debt from `effective_date` onwards."""
+
+    __tablename__ = "debt_rate_changes"
+    __table_args__ = (
+        CheckConstraint("rate >= 0", name="rate_non_negative"),
+        Index(
+            "ix_debt_rate_changes_debt_effective_date",
+            "debt_id",
+            "effective_date",
+            unique=True,
+        ),
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    debt_id: Mapped[str] = mapped_column(
+        ForeignKey("debts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    rate: Mapped[float] = mapped_column(Numeric(7, 4), nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(String(255))
+
+    debt = relationship("Debt", back_populates="rate_changes")
