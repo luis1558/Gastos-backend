@@ -16,6 +16,7 @@ class GoalCreateRequest(BaseModel):
     target_date: Optional[date] = None
     notes: Optional[str] = None
     debt_id: Optional[str] = None
+    fixed_payment_id: Optional[str] = None
 
 
 class GoalUpdateRequest(BaseModel):
@@ -38,6 +39,8 @@ class GoalResponse(BaseModel):
     notes: Optional[str]
     debt_id: Optional[str]
     debt_label: Optional[str] = None
+    fixed_payment_id: Optional[str] = None
+    fixed_payment_label: Optional[str] = None
     saved_amount: Decimal
     remaining_amount: Decimal
     progress_percent: Decimal

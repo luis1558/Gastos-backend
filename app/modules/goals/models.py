@@ -52,9 +52,14 @@ class Goal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("debts.id", ondelete="SET NULL"),
         index=True,
     )
+    fixed_payment_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("fixed_payments.id", ondelete="SET NULL"),
+        index=True,
+    )
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     debt = relationship("Debt")
+    fixed_payment = relationship("FixedPayment")
     contributions = relationship(
         "GoalContribution",
         back_populates="goal",
