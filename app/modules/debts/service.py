@@ -26,6 +26,21 @@ ZERO = Decimal("0.00")
 BALANCE_TOLERANCE = Decimal("0.005")
 
 
+def ensure_amount_editable(
+    current_status: DebtStatus,
+    current_amount: Decimal,
+    requested_amount: Optional[Decimal],
+) -> None:
+    """A paid debt keeps its amount: only unpaid debts may change it."""
+    if requested_amount is None or Decimal(requested_amount) == Decimal(current_amount):
+        return
+    if current_status == DebtStatus.PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the amount of a paid debt.",
+        )
+
+
 class DebtService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -117,15 +132,23 @@ class DebtService:
         rate_type: Optional[RateType] = None,
         rate_period: Optional[RatePeriod] = None,
         interest_rate: Optional[Decimal] = None,
+        debt_type: Optional[DebtType] = None,
+        clear_due_date: bool = False,
     ) -> DebtResponse:
         debt = self._require_debt(current_user.id, debt_id)
         paid_amount = self._paid_amount(debt)
+        ensure_amount_editable(debt.status, debt.original_amount, original_amount)
+
+        if debt_type is not None:
+            debt.type = debt_type
 
         if counterparty_id is not None:
             counterparty = self._require_counterparty(current_user.id, counterparty_id)
             debt.counterparty_id = counterparty.id
         if due_date is not None:
             debt.due_date = due_date
+        elif clear_due_date:
+            debt.due_date = None
         if original_amount is not None:
             if debt.interest_type == InterestType.NONE and original_amount < paid_amount:
                 raise HTTPException(
