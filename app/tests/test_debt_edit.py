@@ -14,6 +14,13 @@ def test_paid_debt_amount_cannot_change():
     assert exc.value.status_code == 400
 
 
+def test_cancelled_debt_amount_cannot_change():
+    with pytest.raises(HTTPException) as exc:
+        ensure_amount_editable(DebtStatus.CANCELLED, Decimal("100"), Decimal("150"))
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Cannot change the amount of a cancelled debt."
+
+
 @pytest.mark.parametrize("status", [DebtStatus.PENDING, DebtStatus.PARTIALLY_PAID])
 def test_unpaid_debt_amount_can_change(status):
     ensure_amount_editable(status, Decimal("100"), Decimal("150"))
