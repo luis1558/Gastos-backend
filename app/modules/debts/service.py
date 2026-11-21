@@ -31,13 +31,18 @@ def ensure_amount_editable(
     current_amount: Decimal,
     requested_amount: Optional[Decimal],
 ) -> None:
-    """A paid debt keeps its amount: only unpaid debts may change it."""
+    """Paid and cancelled debts keep their amount: only open debts may change it."""
     if requested_amount is None or Decimal(requested_amount) == Decimal(current_amount):
         return
     if current_status == DebtStatus.PAID:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot change the amount of a paid debt.",
+        )
+    if current_status == DebtStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the amount of a cancelled debt.",
         )
 
 
