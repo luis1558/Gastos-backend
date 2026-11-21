@@ -133,6 +133,7 @@ class DebtService:
         rate_period: Optional[RatePeriod] = None,
         interest_rate: Optional[Decimal] = None,
         debt_type: Optional[DebtType] = None,
+        clear_due_date: bool = False,
     ) -> DebtResponse:
         debt = self._require_debt(current_user.id, debt_id)
         paid_amount = self._paid_amount(debt)
@@ -146,6 +147,8 @@ class DebtService:
             debt.counterparty_id = counterparty.id
         if due_date is not None:
             debt.due_date = due_date
+        elif clear_due_date:
+            debt.due_date = None
         if original_amount is not None:
             if debt.interest_type == InterestType.NONE and original_amount < paid_amount:
                 raise HTTPException(

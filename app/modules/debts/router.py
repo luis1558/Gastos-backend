@@ -74,6 +74,7 @@ def create_debt(
         current_user=current_user,
         counterparty_id=payload.counterparty_id,
         debt_type=payload.type,
+        clear_due_date="due_date" in payload.model_fields_set and payload.due_date is None,
         origin_date=payload.origin_date,
         due_date=payload.due_date,
         original_amount=payload.original_amount,

@@ -26,3 +26,8 @@ def test_paid_debt_accepts_same_amount_or_no_amount():
 
 def test_update_request_accepts_debt_type():
     assert DebtUpdateRequest(type="receivable").type == DebtType.RECEIVABLE
+
+
+def test_update_request_tracks_explicit_null_due_date():
+    assert "due_date" in DebtUpdateRequest(due_date=None).model_fields_set
+    assert "due_date" not in DebtUpdateRequest().model_fields_set
