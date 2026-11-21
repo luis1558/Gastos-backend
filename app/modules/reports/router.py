@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
-from app.modules.reports.schemas import MonthForecastResponse, MonthlySummaryResponse, RecurringExpensesResponse, YearlySummaryResponse
+from app.modules.reports.schemas import (
+    CategoryTrendResponse,
+    MonthForecastResponse,
+    MonthlySummaryResponse,
+    RecurringExpensesResponse,
+    SpendingBreakdownResponse,
+    YearlySummaryResponse,
+)
 from app.modules.reports.service import ReportService
 from app.modules.users.models import User
 
@@ -51,3 +58,22 @@ def get_recurring_expenses(
     service: ReportService = Depends(get_report_service),
 ) -> RecurringExpensesResponse:
     return service.get_recurring_expenses(current_user)
+
+
+@router.get("/category-trend", response_model=CategoryTrendResponse)
+def get_category_trend(
+    year: int = Query(..., ge=2000, le=2100),
+    current_user: User = Depends(get_current_user),
+    service: ReportService = Depends(get_report_service),
+) -> CategoryTrendResponse:
+    return service.get_category_trend(current_user, year)
+
+
+@router.get("/spending-breakdown", response_model=SpendingBreakdownResponse)
+def get_spending_breakdown(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+    service: ReportService = Depends(get_report_service),
+) -> SpendingBreakdownResponse:
+    return service.get_spending_breakdown(current_user, year, month)
