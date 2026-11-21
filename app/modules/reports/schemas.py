@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -44,6 +44,8 @@ class YearlySummaryResponse(BaseModel):
     total_expenses: Decimal
     balance: Decimal
     months: list[YearMonthSummary]
+    # Yearly balance / yearly income * 100 (weighted); None when there is no income.
+    savings_rate: Optional[Decimal] = None
 
 
 class MonthForecastResponse(BaseModel):
@@ -57,6 +59,14 @@ class MonthForecastResponse(BaseModel):
     total_income: Decimal
     projected_balance: Decimal
     pace_pct: Optional[Decimal]
+    # "past": closed month (real totals), "current": in progress, "future": not started.
+    period_state: Literal["past", "current", "future"]
+    # Spending that is projected linearly (not fixed / card / debt payments).
+    variable_spent: Decimal
+    # Fixed, card statement and debt payments already recorded; added as-is.
+    committed_spent: Decimal
+    # Active fixed payments not yet paid this month (0 for past months).
+    pending_fixed_payments: Decimal
 
 
 class RecurringExpenseItem(BaseModel):
@@ -73,3 +83,32 @@ class RecurringExpenseItem(BaseModel):
 class RecurringExpensesResponse(BaseModel):
     checked_months: int
     items: list[RecurringExpenseItem]
+
+
+class CategoryTrendItem(BaseModel):
+    category_id: Optional[str]
+    category_name: str
+    monthly: list[Decimal]
+
+
+class CategoryTrendResponse(BaseModel):
+    year: int
+    categories: list[CategoryTrendItem]
+
+
+class PaymentMethodSpending(BaseModel):
+    payment_method: Optional[str]
+    amount: Decimal
+    count: int
+
+
+class CardSpending(BaseModel):
+    card_id: str
+    card_name: str
+    amount: Decimal
+    count: int
+
+
+class SpendingBreakdownResponse(BaseModel):
+    by_payment_method: list[PaymentMethodSpending]
+    by_card: list[CardSpending]
