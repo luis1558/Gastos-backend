@@ -114,6 +114,7 @@ def update_debt(
         current_user=current_user,
         debt_id=debt_id,
         counterparty_id=payload.counterparty_id,
+        debt_type=payload.type,
         due_date=payload.due_date,
         original_amount=payload.original_amount,
         description=payload.description,

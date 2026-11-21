@@ -60,6 +60,7 @@ class DebtCreateRequest(BaseModel):
 
 class DebtUpdateRequest(BaseModel):
     counterparty_id: Optional[str] = None
+    type: Optional[DebtType] = None
     due_date: Optional[date] = None
     original_amount: Optional[Decimal] = Field(default=None, gt=0, decimal_places=2, max_digits=14)
     description: Optional[str] = Field(default=None, min_length=2, max_length=255)
