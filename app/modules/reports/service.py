@@ -263,18 +263,23 @@ class ReportService:
             prev_days_cap = min(days_elapsed, calendar.monthrange(prev_year, prev_month)[1])
             prev_cutoff = date(prev_year, prev_month, prev_days_cap)
 
-            prev_spent = self._as_decimal(
-                self.db.execute(
-                    select(func.coalesce(func.sum(Expense.amount), 0)).where(
-                        Expense.user_id == current_user.id,
-                        Expense.year == prev_year,
-                        Expense.month == prev_month,
-                        Expense.expense_date <= prev_cutoff,
-                    ),
-                ).scalar_one(),
+            # Pace compares variable spending only, so rent or card payments made
+            # early in the month do not look like overspending.
+            prev_rows = self.db.execute(
+                select(Expense.id, Expense.expense_date, Expense.amount, Expense.description).where(
+                    Expense.user_id == current_user.id,
+                    Expense.year == prev_year,
+                    Expense.month == prev_month,
+                    Expense.expense_date <= prev_cutoff,
+                ),
+            ).all()
+            prev_committed = self._committed_expense_ids(current_user.id, prev_rows)
+            prev_spent = sum(
+                (self._as_decimal(r[2]) for r in prev_rows if r[0] not in prev_committed),
+                ZERO,
             )
             if prev_spent > ZERO:
-                pace_pct = ((total_spent - prev_spent) / prev_spent * 100).quantize(Decimal("0.1"))
+                pace_pct = ((variable_spent - prev_spent) / prev_spent * 100).quantize(Decimal("0.1"))
 
         return MonthForecastResponse(
             year=year,

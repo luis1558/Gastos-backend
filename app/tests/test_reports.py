@@ -325,3 +325,12 @@ def test_report_endpoints_expose_contracts(db, user, may_data):
     assert forecast.json()["period_state"] in {"past", "current", "future"}
 
     assert client.get("/reports/spending-breakdown", params={"year": 2026, "month": 13}).status_code == 422
+
+
+def test_forecast_pace_ignores_committed_payments(db, user):
+    food, home = _category(db, user, "Comida"), _category(db, user, "Hogar")
+    _expense(db, user, food, date(2026, 4, 1), 100)
+    _expense(db, user, food, date(2026, 5, 1), 100)
+    _pay_fixed(db, user, _fixed_payment(db, user, home, "Alquiler", 1000), date(2026, 5, 2), 1000)
+    r = ReportService(db).get_month_forecast(user, 2026, 5, today=date(2026, 5, 2))
+    assert r.pace_pct == D("0.0")
